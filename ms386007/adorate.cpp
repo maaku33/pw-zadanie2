@@ -23,7 +23,7 @@ const count_t THREAD_MAX_N = 100;
 class Graph {
 public:
     using adjacency_list = std::vector<std::pair<weight_t, node_t>>;
-    using node_list = std::map<node_t, adjacency_list>;
+    using node_list = std::map<node_t, adjacency_list>; // TODO: consider more efficient structures
 
 private:
     node_list V;
@@ -47,6 +47,7 @@ bool createGraphFromFile(std::string &file, Graph &G) {
 
     if (fs.fail()) {
         std::cerr << "Counld not open the file " << file << "\n";
+        fs.close();
         return false;
     }
 
@@ -59,7 +60,7 @@ bool createGraphFromFile(std::string &file, Graph &G) {
     weight_t w;
     while (!fs.eof()) {
         fs >> v >> u >> w;
-        if (fs.fail()) break;
+        if (fs.fail()) break; // TODO: turn off failbit ?
 
         G.addEdge(v, u, w);
     }
