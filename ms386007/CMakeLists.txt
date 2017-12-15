@@ -5,6 +5,6 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -g -DDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
-add_executable(adorate adorate.cpp)
+add_executable(adorate adorate.cpp blimit.cpp)
 
 install(TARGETS DESTINATION .)
