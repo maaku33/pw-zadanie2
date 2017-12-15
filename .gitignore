@@ -34,3 +34,11 @@
 # Builds
 */release/*
 */debug/*
+
+# Latex build files
+*.pdf
+*.synctex*
+*.log
+*.fls
+*.aux
+*.fdb*
