@@ -16,8 +16,7 @@ int main(int argc, char** argv) {
             " thread-count inputfile b-limit\n"
             " thread-count\t\tnumber of created threads\n"
             " inputile\t\tpath to file containing the graph's description\n"
-            " b-limit\t\tpath to function returning maximum number of edges"
-            " incident with a given vertex\n";
+            " b-limit\t\tnumber of methods passed to bvalue function\n";
         
         return 1;
     }
