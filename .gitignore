@@ -34,6 +34,7 @@
 # Builds
 */release/*
 */debug/*
+*/build/*
 
 # Latex build files
 *.pdf
@@ -45,3 +46,7 @@
 
 # Bash script makings
 *.zip
+
+# Tests
+*.log
+*results-run1.csv
