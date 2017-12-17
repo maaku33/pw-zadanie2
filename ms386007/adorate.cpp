@@ -4,8 +4,11 @@
 #include <limits>
 #include <string>
 #include <vector>
-#include <map>
+#include <unordered_map>
+#include <queue>
+#include <numeric>
 #include <thread>
+#include <mutex>
 
 #ifdef DEBUG
     const bool debug = true;
@@ -20,26 +23,44 @@ using result_t = weight_t;
 
 const count_t THREAD_MAX_N = 100;
 
+
 class Graph {
 public:
+    using hash_map = std::unordered_map<node_t, node_t>;
     using adjacency_list = std::vector<std::pair<weight_t, node_t>>;
-    using node_list = std::map<node_t, adjacency_list>; // TODO: consider more efficient structures
+    using node_list = std::vector<adjacency_list>;
+    using size_type = node_list::size_type;
 
 private:
+    hash_map M;
     node_list V;
+    size_type nodeCount;
     
+    node_t hashNode(node_t v) {
+        if (M.find(v) == M.end()) return M[v] = nodeCount++;
+        else return M[v];
+    }
+
+    void resizeList(node_t v) { if (V.size() <= v) V.resize(v + 2); }
+
 public:
-    Graph() = default;
+    Graph() : nodeCount(0) {}
 
     void addEdge(node_t v, node_t u, weight_t w);
     node_list::const_iterator nodeItBegin() const { return V.begin(); }
+    adjacency_list getAdjacencyList(node_t v) { return V[v]; }
+    node_t d
+    size_type size() { return nodeCount; }
 };
 
 void Graph::addEdge(node_t v, node_t u, weight_t w) {
-    // TODO: Merge same edges (leave heaviest) ?
+    v = hashNode(v), u = hashNode(u);
+    resizeList(std::max(v, u));
+    
     V[v].push_back(std::make_pair(w, u));
     V[u].push_back(std::make_pair(w, v));
 }
+
 
 bool createGraphFromFile(std::string &file, Graph &G) {
     std::fstream fs;
@@ -61,7 +82,6 @@ bool createGraphFromFile(std::string &file, Graph &G) {
     while (!fs.eof()) {
         fs >> v >> u >> w;
         if (fs.fail()) break; // TODO: turn off failbit ?
-
         G.addEdge(v, u, w);
     }
 
@@ -69,10 +89,42 @@ bool createGraphFromFile(std::string &file, Graph &G) {
     return true;
 }
 
+void parrallelExecutor(count_t start, count_t count,
+                       std::mutex &mut,
+                       std::vector<node_t> &V,
+                       std::vector<node_t> &Vdef) {
+
+}
+
 result_t parrallelBSuitor(Graph &G,
                           count_t (*b)(count_t, node_t),
-                          count_t method) {
-    return b(method, ((*(G.nodeItBegin())).second)[0].second);
+                          count_t method,
+                          count_t threads) {
+    std::vector<node_t> V(G.size()), Vdef;
+    std::vector<count_t> B;
+    
+    std::iota(V.begin(), V.end(), 0);
+    for (int i = 0; i <= n; i++)
+
+    std::mutex mut;
+
+    while (!V.empty()) {
+        count_t jump = V.size() / threads;
+        std::vector<std::thread> T;
+
+        for (count_t start = 0; start < V.size(); start += jump) {
+            std::thread t([start, jump, &mut, &V, &Vdef]{ parrallelExecutor(start, jump, mut, V, Vdef); });
+            T.push_back(std::move(t));
+        }
+        while (!T.empty()) {
+            T.back().join();
+            T.pop_back();
+        }
+
+        V.insert(V.end(), Vdef.begin(), Vdef.end());
+    }
+
+    return b(method, (*(G.nodeItBegin()))[0].second);
 }
 
 int main(int argc, char** argv) {
@@ -99,7 +151,7 @@ int main(int argc, char** argv) {
     if (!createGraphFromFile(inputFilename, G)) return 1;
 
     for (count_t i = 0; i < bLimit; i++) {
-        std::cout << parrallelBSuitor(G, &bvalue, i) << "\n";
+        std::cout << parrallelBSuitor(G, &bvalue, i, threadCount) << "\n";
     }
 
     return 0;
