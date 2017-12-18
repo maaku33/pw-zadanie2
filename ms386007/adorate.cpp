@@ -81,22 +81,75 @@ public:
     using atomic_node_list = std::vector<std::atomic<node_t>>;
     using count_list = std::vector<count_t>;
     using atomic_count_list = std::vector<std::atomic<count_t>>;
+    using suitors_queue = std::priority_queue<node_t>;
+    using queue_list = std::vector<suitors_queue>;
 
     node_list V;
     atomic_node_list Vdef;
-    count_list B, S;
+    count_list B, H;
     atomic_count_list dB;
+    queue_list S;
 
     Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method);
+    node_t lastSuitor(node_t v);
 };
 
 Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
     V.resize(G.size());
+    S.resize(G.size());
     std::iota(V.begin(), V.end(), 0);
-    memset(&S, 0, G.size() * sizeof(decltype(S)::value_type));
+    memset(&H, 0, G.size() * sizeof(decltype(H)::value_type));
     for (int i = 0; i < G.size(); i++) {
         B.push_back(b(method, G.dehashNode(i)));
     }
+}
+
+node_t Matching::lastSuitor(node_t v) {
+    if (S[v].empty()) return -1; // TODO: node_t unsigned!
+    return S[v].top(); // TODO: Inverse queue!
+}
+
+bool createGraphFromFile(std::string &file, Graph &G);
+
+node_t findEligiblePartner(node_t v, Graph &G, Matching &M);
+bool isEligible(node_t v, node_t u, Graph &G, Matching &M);
+void parrallelExecutor(count_t start, count_t count,
+                       Graph &G,
+                       std::mutex &mut,
+                       Matching &M);
+result_t parrallelBSuitor(Graph &G,
+                          count_t (*b)(count_t, node_t),
+                          count_t method,
+                          count_t threads);
+
+int main(int argc, char** argv) {
+    if (argc != 4) {
+        std::cerr << "usage: " << argv[0] <<
+            " thread-count inputfile b-limit\n"
+            " thread-count\t\tnumber of created threads\n"
+            " inputile\t\tpath to file containing the graph's description\n"
+            " b-limit\t\tnumber of methods passed to bvalue function\n";
+
+        return 1;
+    }
+
+    count_t threadCount = std::stoi(argv[1]), bLimit = std::stoi(argv[3]);
+    std::string inputFilename(argv[2]);
+
+    if (threadCount > THREAD_MAX_N) {
+        std::cerr << "number of threads cannot exceed " << THREAD_MAX_N << "\n";
+
+        return 1;
+    }
+
+    Graph G = Graph();
+    if (!createGraphFromFile(inputFilename, G)) return 1;
+
+    for (count_t i = 0; i < bLimit; i++) {
+        std::cout << parrallelBSuitor(G, &bvalue, i, threadCount) << "\n";
+    }
+
+    return 0;
 }
 
 bool createGraphFromFile(std::string &file, Graph &G) {
@@ -126,6 +179,14 @@ bool createGraphFromFile(std::string &file, Graph &G) {
     return true;
 }
 
+node_t findEligiblePartner(node_t v, Graph &G, Matching &M) {
+    return 0;
+}
+
+bool isEligible(node_t v, node_t u, Graph &G, Matching &M) {
+    return true;
+}
+
 void parrallelExecutor(count_t start, count_t count,
                        Graph &G,
                        std::mutex &mut,
@@ -134,17 +195,21 @@ void parrallelExecutor(count_t start, count_t count,
     count_t i, j;
     Graph::adjacency_list A;
     for (count_t k = start; k < start + count && k < M.V.size(); k++) {
-        v = M.V[k], i = 0, j = M.S[v];
+        v = M.V[k], i = 0, j = M.H[v];
         A = G.getAdjacencyList(v);
 
-        while (i <= M.B[v] && j <= A.size()) {
-            // let u be eligible partner of v
+        while (i <= M.H[v] && j <= A.size()) {
+            u = findEligiblePartner(v, G, M);
+
             mut.lock();
-            // if u still eligible
+
+            if (isEligible(v, u, G, M)) {
                 i++;
                 // update u
             }
+
             mut.unlock();
+        }
     }
 }
 
@@ -175,34 +240,4 @@ result_t parrallelBSuitor(Graph &G,
     }
 
     return b(method, (*(G.nodeItBegin()))[0].second);
-}
-
-int main(int argc, char** argv) {
-    if (argc != 4) {
-        std::cerr << "usage: " << argv[0] <<
-            " thread-count inputfile b-limit\n"
-            " thread-count\t\tnumber of created threads\n"
-            " inputile\t\tpath to file containing the graph's description\n"
-            " b-limit\t\tnumber of methods passed to bvalue function\n";
-
-        return 1;
-    }
-
-    count_t threadCount = std::stoi(argv[1]), bLimit = std::stoi(argv[3]);
-    std::string inputFilename(argv[2]);
-
-    if (threadCount > THREAD_MAX_N) {
-        std::cerr << "number of threads cannot exceed " << THREAD_MAX_N << "\n";
-
-        return 1;
-    }
-
-    Graph G = Graph();
-    if (!createGraphFromFile(inputFilename, G)) return 1;
-
-    for (count_t i = 0; i < bLimit; i++) {
-        std::cout << parrallelBSuitor(G, &bvalue, i, threadCount) << "\n";
-    }
-
-    return 0;
 }
