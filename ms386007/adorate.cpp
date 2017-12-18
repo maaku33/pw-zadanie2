@@ -52,7 +52,7 @@ public:
 
     void addEdge(node_t v, node_t u, weight_t w);
     node_list::const_iterator nodeItBegin() const { return V.begin(); }
-    adjacency_list getAdjacencyList(node_t v) { return V[v]; }
+    adjacency_list& getAdjacencyList(node_t v) { return V[v]; }
     node_t dehashNode(node_t v) { return N[v]; }
     size_type size() { return nodeCount; }
 };
@@ -79,19 +79,15 @@ void Graph::addEdge(node_t v, node_t u, weight_t w) {
 class Matching {
 public:
     using node_list = std::vector<node_t>;
-    using atomic_node_list = std::vector<std::atomic<node_t>>;
     using count_list = std::vector<count_t>;
     using atomic_count_list = std::vector<std::atomic<count_t>>;
-    using suitors_queue = std::priority_queue<std::pair<node_t, weight_t>>;
-    using queue_list = std::vector<suitors_queue>;
-    using node_set = std::set<node_t>;
-    using set_list = std::vector<node_set>;
+    using edge_set = std::set<std::pair<weight_t, node_t>>;
+    using set_list = std::vector<edge_set>;
 
-    node_list V;
-    atomic_node_list Vdef;
-    count_list B, H;
+    node_list V, Vdef;
+    count_list B, T;
     atomic_count_list dB;
-    queue_list S;
+    set_list N, S;
 
     Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method);
     std::pair<node_t, weight_t> lastSuitor(node_t v);
@@ -99,25 +95,31 @@ public:
 };
 
 Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
-    V.resize(G.size());
+    T.resize(G.size());
     S.resize(G.size());
+    V.resize(G.size());
     std::iota(V.begin(), V.end(), 0);
-    memset(&H, 0, G.size() * sizeof(decltype(H)::value_type));
-    for (int i = 0; i < G.size(); i++) {
+    
+    for (count_t i = 0; i < G.size(); i++) {
         B.push_back(b(method, G.dehashNode(i)));
+
+        Graph::adjacency_list &tempA = G.getAdjacencyList(i);
+        if (B.back() > tempA.size()) 
+            N.push_back(edge_set(tempA.begin(), tempA.end()));
+        else
+            N.push_back(edge_set(tempA.begin(), tempA.begin() + B.back()));
     }
 }
 
-std::pair<node_t, weight_t> Matching::lastSuitor(node_t v) {
-    if (S[v].empty()) return std::make_pair(-1, 0); // TODO: node_t unsigned!
-    return S[v].top(); // TODO: Inverse queue!
+std::pair<weight_t, node_t> Matching::lastSuitor(node_t v) {
+    if (S[v].size() < B[v]) return std::make_pair(0, -1); // TODO: node_t unsigned!
+    return *(S[v].end());
 }
 
 bool createGraphFromFile(std::string &file, Graph &G);
-node_t findEligiblePartner(node_t v, Graph &G, Matching &M);
-bool isEligible(node_t v, node_t u, Graph &G, Matching &M);
+std::pair<weight_t, node_t> findEligiblePartner(node_t v, Matching &M);
+bool isEligible(std::pair<weight_t, node_t> p, Matching &M);
 void parrallelExecutor(count_t start, count_t count,
-                       Graph &G,
                        std::mutex &mut,
                        Matching &M);
 result_t parrallelBSuitor(Graph &G,
@@ -182,46 +184,34 @@ bool createGraphFromFile(std::string &file, Graph &G) {
     return true;
 }
 
-node_t findEligiblePartner(node_t v, Graph &G, Matching &M) {
-    weight_t maxWeight = 0;
-    node_t maxNode = -1;
-    Graph::adjacency_list A = G.getAdjacencyList(v);
+std::pair<weight_t, node_t> findEligiblePartner(node_t v, Matching &M) {
+    auto it = M.N[v].begin(), itEnd = M.N[v].end();
 
-    for (count_t i = M.H[v]; i < A.size(); i++) {
-        if (A[i].first > M.lastSuitor(A[i].second).second) {
-            maxWeight = A[i].first;
-            maxNode = A[i].second;
-        }
-    }
+    while (it != itEnd && M.lastSuitor((*it).second).first >= (*it).first) ++it;
 
-    // TODO: Update M.H ??
-
-    return maxNode;
+    if (it == itEnd) return std::make_pair(0, -1);
+    return (*it);
 }
 
-bool isEligible(node_t v, node_t u, Graph &G, Matching &M) {
-    return true;
+bool isEligible(std::pair<weight_t, node_t> p, Matching &M) {
+    return M.lastSuitor(p.second).first < p.first;
 }
 
 void parrallelExecutor(count_t start, count_t count,
-                       Graph &G,
                        std::mutex &mut,
                        Matching &M) {
-    node_t v, u;
-    count_t i, j;
-    Graph::adjacency_list A;
+    node_t v;
+    std::pair<weight_t, node_t> p;
 
     for (count_t k = start; k < start + count && k < M.V.size(); k++) {
-        v = M.V[k], i = 0, j = M.H[v];
-        A = G.getAdjacencyList(v);
+        v = M.V[k];
 
-        while (i <= M.H[v] && j <= A.size()) {
-            u = findEligiblePartner(v, G, M);
+        while (M.T[v] < M.B[v] && !M.N[v].empty()) {
+            p = findEligiblePartner(v, M);
 
             mut.lock();
 
-            if (isEligible(v, u, G, M)) {
-                i++;
+            if (isEligible(p, M)) {
                 // update u
             }
 
@@ -242,8 +232,8 @@ result_t parrallelBSuitor(Graph &G,
         std::vector<std::thread> threads;
 
         for (count_t start = 0; start < M.V.size(); start += jump) {
-            std::thread t([start, jump, &G, &mut, &M]{
-                parrallelExecutor(start, jump, G, mut, M);
+            std::thread t([start, jump, &mut, &M]{
+                parrallelExecutor(start, jump, mut, M);
             });
             threads.push_back(std::move(t));
         }
