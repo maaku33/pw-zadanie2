@@ -9,6 +9,7 @@
 #include <numeric>
 #include <thread>
 #include <mutex>
+#include <atomic>
 
 #ifdef DEBUG
     const bool debug = true;
@@ -66,6 +67,29 @@ void Graph::addEdge(node_t v, node_t u, weight_t w) {
 }
 
 
+class Matching {
+public:
+    using node_list = std::vector<node_t>;
+    using atomic_node_list = std::vector<std::atomic<node_t>>;
+    using count_list = std::vector<count_t>;
+    using atomic_count_list = std::vector<std::atomic<count_t>>;
+
+    node_list V;
+    atomic_node_list Vdef;
+    count_list B, S;
+    atomic_count_list dB;
+
+    Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
+        V.resize(G.size());
+        std::iota(V.begin(), V.end(), 0);
+        memset(&S, 0, G.size() * sizeof(decltype(S)::value_type));
+        for (int i = 0; i < G.size(); i++) {
+            B.push_back(b(method, G.dehashNode(i)));
+        }
+    }
+};
+
+
 bool createGraphFromFile(std::string &file, Graph &G) {
     std::fstream fs;
     fs.open(file, std::fstream::in);
@@ -96,18 +120,15 @@ bool createGraphFromFile(std::string &file, Graph &G) {
 void parrallelExecutor(count_t start, count_t count,
                        Graph &G,
                        std::mutex &mut,
-                       std::vector<node_t> &V,
-                       std::vector<node_t> &Vdef, // TODO: Make concurrent
-                       std::vector<count_t> &B,
-                       std::vector<count_t> &S) {
+                       Matching &M) {
     node_t v, u;
     count_t i, j;
     Graph::adjacency_list A;
-    for (count_t k = start; k < start + count && k < V.size(); k++) {
-        v = V[k], i = 0, j = S[v];
+    for (count_t k = start; k < start + count && k < M.V.size(); k++) {
+        v = M.V[k], i = 0, j = M.S[v];
         A = G.getAdjacencyList(v);
 
-        while (i <= B[v] && j <= A.size()) {
+        while (i <= M.B[v] && j <= A.size()) {
             // let u be eligible partner of v
             mut.lock();
             // if u still eligible
@@ -122,24 +143,16 @@ result_t parrallelBSuitor(Graph &G,
                           count_t (*b)(count_t, node_t),
                           count_t method,
                           count_t threads) {
-    std::vector<node_t> V(G.size()), Vdef;
-    std::vector<count_t> B, S;
-
-    std::iota(V.begin(), V.end(), 0);
-    memset(&S, 0, G.size() * sizeof(decltype(S)::value_type));
-    for (int i = 0; i < G.size(); i++) {
-        B.push_back(b(method, G.dehashNode(i)));
-    }
-
+    Matching M(G, b, method);
     std::mutex mut;
 
-    while (!V.empty()) {
-        count_t jump = V.size() / threads;
+    while (!M.V.empty()) {
+        count_t jump = M.V.size() / threads;
         std::vector<std::thread> T;
 
-        for (count_t start = 0; start < V.size(); start += jump) {
-            std::thread t([start, jump, &G, &mut, &V, &Vdef, &B, &S]{
-                parrallelExecutor(start, jump, G, mut, V, Vdef, B, S);
+        for (count_t start = 0; start < M.V.size(); start += jump) {
+            std::thread t([start, jump, &G, &mut, &M]{
+                parrallelExecutor(start, jump, G, mut, M);
             });
             T.push_back(std::move(t));
         }
@@ -148,8 +161,8 @@ result_t parrallelBSuitor(Graph &G,
             T.pop_back();
         }
 
-        V.insert(V.end(), Vdef.begin(), Vdef.end());
-        Vdef.clear();
+        M.V.insert(M.V.end(), M.Vdef.begin(), M.Vdef.end());
+        M.Vdef.clear();
     }
 
     return b(method, (*(G.nodeItBegin()))[0].second);
