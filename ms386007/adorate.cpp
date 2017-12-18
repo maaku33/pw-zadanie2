@@ -85,7 +85,7 @@ public:
     using node_list = std::vector<node_t>;
     using count_list = std::vector<count_t>;
     using atomic_count_list = std::vector<std::atomic<count_t>>;
-    using edge_set = std::set<std::pair<weight_t, node_t>>;
+    using edge_set = std::set<std::pair<weight_t, node_t>, std::greater<std::pair<weight_t, node_t>>>;
     using set_list = std::vector<edge_set>;
 
     node_list V, Vdef;
@@ -108,10 +108,18 @@ Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
         B.push_back(b(method, G.dehashNode(i)));
 
         Graph::adjacency_list &tempA = G.getAdjacencyList(i);
-        if (B.back() > tempA.size()) 
+        // if (B.back() > tempA.size()) 
             N.push_back(edge_set(tempA.begin(), tempA.end()));
-        else
-            N.push_back(edge_set(tempA.begin(), tempA.begin() + B.back()));
+        // else
+            // N.push_back(edge_set(tempA.begin(), tempA.begin() + B.back()));
+        
+        if (false) {
+            std::cerr << "Eligible adorators for node " << i << std::endl;
+            for (std::pair<weight_t, node_t> p : N.back()) {
+                std::cerr << "  " << i << "-" << p.second << " : " << p.first << std::endl;
+            }
+        }
+
     }
 }
 
@@ -130,16 +138,21 @@ result_t Matching::result() {
             sum += p.first;
         }
     }
-    return sum;
+    return sum / 2;
 }
 
 std::pair<weight_t, node_t> Matching::lastSuitor(node_t v) {
+    if (S[v].size() < B[v]) { 
+        if (debug) {
+            std::cerr << "No least suitor for " << v << std::endl;
+        }
+        return std::make_pair(0, -1); // TODO: node_t unsigned!
+    }
     if (debug) {
-        std::cerr << "Looking for last suitor for " << v << std::endl;
+        std::cerr << "There is a last suitor " << (*(--(S[v].end()))).second << " : " << (*(--(S[v].end()))).first << std::endl;
     }
 
-    if (S[v].size() < B[v]) return std::make_pair(0, -1); // TODO: node_t unsigned!
-    return *(--(S[v].end()));
+    return std::make_pair((*(--(S[v].end()))).first, (*(--(S[v].end()))).second);
 }
 
 bool createGraphFromFile(std::string &file, Graph &G);
@@ -250,12 +263,15 @@ void parrallelExecutor(count_t start, count_t count,
             if (isEligible(p, M)) {
                 u = p.second;
 
-                M.S[u].insert(p);
+                M.S[u].insert(std::make_pair(p.first, v));
+                M.N[v].erase(p);
                 M.T[v]++;
-
-                if ((y = M.lastSuitor(u).second) != (node_t) -1) {
+                
+                if (M.S[u].size() > M.B[u]) {
+                    y = M.lastSuitor(u).second;
                     M.T[y]--;
                     M.Vdef.push_back(y);
+                    M.S[u].erase(--(M.S[u].end()));
                 }
             }
 
