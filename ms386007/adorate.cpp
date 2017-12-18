@@ -2,7 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <limits>
-#include <string>
+#include <cstring>
 #include <vector>
 #include <unordered_map>
 #include <queue>
@@ -30,15 +30,19 @@ public:
     using adjacency_list = std::vector<std::pair<weight_t, node_t>>;
     using node_list = std::vector<adjacency_list>;
     using size_type = node_list::size_type;
+    using dehash_list = std::vector<node_t>;
 
 private:
     hash_map M;
+    dehash_list N;
     node_list V;
     size_type nodeCount;
-    
+
     node_t hashNode(node_t v) {
-        if (M.find(v) == M.end()) return M[v] = nodeCount++;
-        else return M[v];
+        if (M.find(v) == M.end()) {
+            N.push_back(v);
+            return M[v] = nodeCount++;
+        } else return M[v];
     }
 
     void resizeList(node_t v) { if (V.size() <= v) V.resize(v + 2); }
@@ -49,14 +53,14 @@ public:
     void addEdge(node_t v, node_t u, weight_t w);
     node_list::const_iterator nodeItBegin() const { return V.begin(); }
     adjacency_list getAdjacencyList(node_t v) { return V[v]; }
-    node_t d
+    node_t dehashNode(node_t v) { return N[v]; }
     size_type size() { return nodeCount; }
 };
 
 void Graph::addEdge(node_t v, node_t u, weight_t w) {
     v = hashNode(v), u = hashNode(u);
     resizeList(std::max(v, u));
-    
+
     V[v].push_back(std::make_pair(w, u));
     V[u].push_back(std::make_pair(w, v));
 }
@@ -90,10 +94,28 @@ bool createGraphFromFile(std::string &file, Graph &G) {
 }
 
 void parrallelExecutor(count_t start, count_t count,
+                       Graph &G,
                        std::mutex &mut,
                        std::vector<node_t> &V,
-                       std::vector<node_t> &Vdef) {
+                       std::vector<node_t> &Vdef, // TODO: Make concurrent
+                       std::vector<count_t> &B,
+                       std::vector<count_t> &S) {
+    node_t v, u;
+    count_t i, j;
+    Graph::adjacency_list A;
+    for (count_t k = start; k < start + count && k < V.size(); k++) {
+        v = V[k], i = 0, j = S[v];
+        A = G.getAdjacencyList(v);
 
+        while (i <= B[v] && j <= A.size()) {
+            // let u be eligible partner of v
+            mut.lock();
+            // if u still eligible
+                i++;
+                // update u
+            }
+            mut.unlock();
+    }
 }
 
 result_t parrallelBSuitor(Graph &G,
@@ -101,10 +123,13 @@ result_t parrallelBSuitor(Graph &G,
                           count_t method,
                           count_t threads) {
     std::vector<node_t> V(G.size()), Vdef;
-    std::vector<count_t> B;
-    
+    std::vector<count_t> B, S;
+
     std::iota(V.begin(), V.end(), 0);
-    for (int i = 0; i <= n; i++)
+    memset(&S, 0, G.size() * sizeof(decltype(S)::value_type));
+    for (int i = 0; i < G.size(); i++) {
+        B.push_back(b(method, G.dehashNode(i)));
+    }
 
     std::mutex mut;
 
@@ -113,7 +138,9 @@ result_t parrallelBSuitor(Graph &G,
         std::vector<std::thread> T;
 
         for (count_t start = 0; start < V.size(); start += jump) {
-            std::thread t([start, jump, &mut, &V, &Vdef]{ parrallelExecutor(start, jump, mut, V, Vdef); });
+            std::thread t([start, jump, &G, &mut, &V, &Vdef, &B, &S]{
+                parrallelExecutor(start, jump, G, mut, V, Vdef, B, S);
+            });
             T.push_back(std::move(t));
         }
         while (!T.empty()) {
@@ -122,6 +149,7 @@ result_t parrallelBSuitor(Graph &G,
         }
 
         V.insert(V.end(), Vdef.begin(), Vdef.end());
+        Vdef.clear();
     }
 
     return b(method, (*(G.nodeItBegin()))[0].second);
@@ -134,7 +162,7 @@ int main(int argc, char** argv) {
             " thread-count\t\tnumber of created threads\n"
             " inputile\t\tpath to file containing the graph's description\n"
             " b-limit\t\tnumber of methods passed to bvalue function\n";
-        
+
         return 1;
     }
 
