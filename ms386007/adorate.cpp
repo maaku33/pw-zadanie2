@@ -68,6 +68,10 @@ void Graph::addEdge(node_t v, node_t u, weight_t w) {
     v = hashNode(v), u = hashNode(u);
     resizeList(std::max(v, u));
 
+    if (debug) {
+        std::cerr << "  creating new edge:\t\t" << v << "-" << u << " : " << w << std::endl;
+    }
+
     V[v].push_back(std::make_pair(w, u));
     V[u].push_back(std::make_pair(w, v));
 }
@@ -91,7 +95,7 @@ public:
 
     Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method);
     std::pair<node_t, weight_t> lastSuitor(node_t v);
-    result_t result() { return 0; } // TODO: result calculating
+    result_t result(); // TODO: result calculating
 };
 
 Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
@@ -111,9 +115,27 @@ Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
     }
 }
 
+result_t Matching::result() {
+    result_t sum = 0;
+
+    if (debug) {
+        std::cerr << "Counting the sum..." << std::endl;
+    }
+
+    for (edge_set set : S) {
+        for (std::pair<weight_t, node_t> p : set) {
+            if (debug) {
+                std::cerr << "  adding to sum:\t" << p.first << "\tto " << p.second << std::endl;
+            }
+            sum += p.first;
+        }
+    }
+    return sum;
+}
+
 std::pair<weight_t, node_t> Matching::lastSuitor(node_t v) {
     if (S[v].size() < B[v]) return std::make_pair(0, -1); // TODO: node_t unsigned!
-    return *(S[v].end());
+    return *(--(S[v].end()));
 }
 
 bool createGraphFromFile(std::string &file, Graph &G);
@@ -172,11 +194,19 @@ bool createGraphFromFile(std::string &file, Graph &G) {
         fs.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
 
+    if (debug) {
+        std::cerr << "Starting to read the graph..." << std::endl;
+    }
+
     node_t v, u;
     weight_t w;
     while (!fs.eof()) {
         fs >> v >> u >> w;
         if (fs.fail()) break; // TODO: turn off failbit ?
+
+        if (debug) {
+            std::cerr << "  read new edge:\t\t" << v << "-" << u << " : " << w << std::endl;
+        }
         G.addEdge(v, u, w);
     }
 
@@ -200,7 +230,7 @@ bool isEligible(std::pair<weight_t, node_t> p, Matching &M) {
 void parrallelExecutor(count_t start, count_t count,
                        std::mutex &mut,
                        Matching &M) {
-    node_t v;
+    node_t v, u, y;
     std::pair<weight_t, node_t> p;
 
     for (count_t k = start; k < start + count && k < M.V.size(); k++) {
@@ -212,7 +242,15 @@ void parrallelExecutor(count_t start, count_t count,
             mut.lock();
 
             if (isEligible(p, M)) {
-                // update u
+                u = p.second;
+
+                M.S[u].insert(p);
+                M.T[v]++;
+
+                if ((y = M.lastSuitor(u).second) != (node_t) -1) {
+                    M.T[y]--;
+                    M.Vdef.push_back(y);
+                }
             }
 
             mut.unlock();
@@ -243,7 +281,7 @@ result_t parrallelBSuitor(Graph &G,
             threads.pop_back();
         }
 
-        M.V.insert(M.V.end(), M.Vdef.begin(), M.Vdef.end());
+        M.V = M.Vdef;
         M.Vdef.clear();
     }
 
