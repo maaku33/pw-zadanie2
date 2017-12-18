@@ -24,7 +24,11 @@ using result_t = weight_t;
 
 const count_t THREAD_MAX_N = 100;
 
-
+/**
+ * Represents a graph using adjacency lists for all nodes. Hashes the nodes'
+ * values upon edge creation, so that they span the interval [0, N) where
+ * N is the number of nodes.
+ */
 class Graph {
 public:
     using hash_map = std::unordered_map<node_t, node_t>;
@@ -39,13 +43,7 @@ private:
     node_list V;
     size_type nodeCount;
 
-    node_t hashNode(node_t v) {
-        if (M.find(v) == M.end()) {
-            N.push_back(v);
-            return M[v] = nodeCount++;
-        } else return M[v];
-    }
-
+    node_t hashNode(node_t v);
     void resizeList(node_t v) { if (V.size() <= v) V.resize(v + 2); }
 
 public:
@@ -58,6 +56,13 @@ public:
     size_type size() { return nodeCount; }
 };
 
+node_t Graph::hashNode(node_t v) {
+    if (M.find(v) == M.end()) {
+        N.push_back(v);
+        return M[v] = nodeCount++;
+    } else return M[v];
+}
+
 void Graph::addEdge(node_t v, node_t u, weight_t w) {
     v = hashNode(v), u = hashNode(u);
     resizeList(std::max(v, u));
@@ -66,7 +71,10 @@ void Graph::addEdge(node_t v, node_t u, weight_t w) {
     V[u].push_back(std::make_pair(w, v));
 }
 
-
+/**
+ * Wraps different structures required in the parrallel execution of the
+ * algorithm.
+ */
 class Matching {
 public:
     using node_list = std::vector<node_t>;
@@ -79,16 +87,17 @@ public:
     count_list B, S;
     atomic_count_list dB;
 
-    Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
-        V.resize(G.size());
-        std::iota(V.begin(), V.end(), 0);
-        memset(&S, 0, G.size() * sizeof(decltype(S)::value_type));
-        for (int i = 0; i < G.size(); i++) {
-            B.push_back(b(method, G.dehashNode(i)));
-        }
-    }
+    Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method);
 };
 
+Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
+    V.resize(G.size());
+    std::iota(V.begin(), V.end(), 0);
+    memset(&S, 0, G.size() * sizeof(decltype(S)::value_type));
+    for (int i = 0; i < G.size(); i++) {
+        B.push_back(b(method, G.dehashNode(i)));
+    }
+}
 
 bool createGraphFromFile(std::string &file, Graph &G) {
     std::fstream fs;
@@ -169,7 +178,7 @@ result_t parrallelBSuitor(Graph &G,
 }
 
 int main(int argc, char** argv) {
-    if (argc != 4) { // invalid number of parameters
+    if (argc != 4) {
         std::cerr << "usage: " << argv[0] <<
             " thread-count inputfile b-limit\n"
             " thread-count\t\tnumber of created threads\n"
