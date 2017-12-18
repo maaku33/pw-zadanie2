@@ -134,6 +134,10 @@ result_t Matching::result() {
 }
 
 std::pair<weight_t, node_t> Matching::lastSuitor(node_t v) {
+    if (debug) {
+        std::cerr << "Looking for last suitor for " << v << std::endl;
+    }
+
     if (S[v].size() < B[v]) return std::make_pair(0, -1); // TODO: node_t unsigned!
     return *(--(S[v].end()));
 }
@@ -238,6 +242,8 @@ void parrallelExecutor(count_t start, count_t count,
 
         while (M.T[v] < M.B[v] && !M.N[v].empty()) {
             p = findEligiblePartner(v, M);
+
+            if (p.second == (node_t) -1) break;
 
             mut.lock();
 
