@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <queue>
+#include <set>
 #include <numeric>
 #include <thread>
 #include <mutex>
@@ -83,6 +84,8 @@ public:
     using atomic_count_list = std::vector<std::atomic<count_t>>;
     using suitors_queue = std::priority_queue<std::pair<node_t, weight_t>>;
     using queue_list = std::vector<suitors_queue>;
+    using node_set = std::set<node_t>;
+    using set_list = std::vector<node_set>;
 
     node_list V;
     atomic_node_list Vdef;
@@ -92,6 +95,7 @@ public:
 
     Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method);
     std::pair<node_t, weight_t> lastSuitor(node_t v);
+    result_t result() { return 0; } // TODO: result calculating
 };
 
 Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
@@ -206,6 +210,7 @@ void parrallelExecutor(count_t start, count_t count,
     node_t v, u;
     count_t i, j;
     Graph::adjacency_list A;
+
     for (count_t k = start; k < start + count && k < M.V.size(); k++) {
         v = M.V[k], i = 0, j = M.H[v];
         A = G.getAdjacencyList(v);
@@ -228,28 +233,29 @@ void parrallelExecutor(count_t start, count_t count,
 result_t parrallelBSuitor(Graph &G,
                           count_t (*b)(count_t, node_t),
                           count_t method,
-                          count_t threads) {
+                          count_t threadCount) {
     Matching M(G, b, method);
     std::mutex mut;
 
     while (!M.V.empty()) {
-        count_t jump = M.V.size() / threads;
-        std::vector<std::thread> T;
+        count_t jump = M.V.size() / threadCount;
+        std::vector<std::thread> threads;
 
         for (count_t start = 0; start < M.V.size(); start += jump) {
             std::thread t([start, jump, &G, &mut, &M]{
                 parrallelExecutor(start, jump, G, mut, M);
             });
-            T.push_back(std::move(t));
+            threads.push_back(std::move(t));
         }
-        while (!T.empty()) {
-            T.back().join();
-            T.pop_back();
+
+        while (!threads.empty()) {
+            threads.back().join();
+            threads.pop_back();
         }
 
         M.V.insert(M.V.end(), M.Vdef.begin(), M.Vdef.end());
         M.Vdef.clear();
     }
 
-    return b(method, (*(G.nodeItBegin()))[0].second);
+    return M.result();
 }
