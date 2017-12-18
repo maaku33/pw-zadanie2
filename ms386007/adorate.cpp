@@ -81,7 +81,7 @@ public:
     using atomic_node_list = std::vector<std::atomic<node_t>>;
     using count_list = std::vector<count_t>;
     using atomic_count_list = std::vector<std::atomic<count_t>>;
-    using suitors_queue = std::priority_queue<node_t>;
+    using suitors_queue = std::priority_queue<std::pair<node_t, weight_t>>;
     using queue_list = std::vector<suitors_queue>;
 
     node_list V;
@@ -91,7 +91,7 @@ public:
     queue_list S;
 
     Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method);
-    node_t lastSuitor(node_t v);
+    std::pair<node_t, weight_t> lastSuitor(node_t v);
 };
 
 Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
@@ -104,13 +104,12 @@ Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
     }
 }
 
-node_t Matching::lastSuitor(node_t v) {
-    if (S[v].empty()) return -1; // TODO: node_t unsigned!
+std::pair<node_t, weight_t> Matching::lastSuitor(node_t v) {
+    if (S[v].empty()) return std::make_pair(-1, 0); // TODO: node_t unsigned!
     return S[v].top(); // TODO: Inverse queue!
 }
 
 bool createGraphFromFile(std::string &file, Graph &G);
-
 node_t findEligiblePartner(node_t v, Graph &G, Matching &M);
 bool isEligible(node_t v, node_t u, Graph &G, Matching &M);
 void parrallelExecutor(count_t start, count_t count,
@@ -180,7 +179,20 @@ bool createGraphFromFile(std::string &file, Graph &G) {
 }
 
 node_t findEligiblePartner(node_t v, Graph &G, Matching &M) {
-    return 0;
+    weight_t maxWeight = 0;
+    node_t maxNode = -1;
+    Graph::adjacency_list A = G.getAdjacencyList(v);
+
+    for (count_t i = M.H[v]; i < A.size(); i++) {
+        if (A[i].first > M.lastSuitor(A[i].second).second) {
+            maxWeight = A[i].first;
+            maxNode = A[i].second;
+        }
+    }
+
+    // TODO: Update M.H ??
+
+    return maxNode;
 }
 
 bool isEligible(node_t v, node_t u, Graph &G, Matching &M) {
