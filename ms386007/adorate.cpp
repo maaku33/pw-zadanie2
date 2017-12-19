@@ -39,8 +39,9 @@ public:
     using size_type = node_list::size_type;
     using dehash_list = std::vector<node_t>;
 
-private:
     hash_map M;
+
+private:
     dehash_list N;
     node_list V;
     size_type nodeCount;
@@ -69,12 +70,8 @@ void Graph::addEdge(node_t v, node_t u, weight_t w) {
     v = hashNode(v), u = hashNode(u);
     resizeList(std::max(v, u));
 
-    if (debug) {
-        std::cerr << "  creating new edge:\t\t" << v << "-" << u << " : " << w << std::endl;
-    }
-
-    V[v].push_back(std::make_pair(w, u));
-    V[u].push_back(std::make_pair(w, v));
+    V[v].push_back(std::make_pair(w, dehashNode(u)));
+    V[u].push_back(std::make_pair(w, dehashNode(v)));
 }
 
 /**
@@ -82,6 +79,8 @@ void Graph::addEdge(node_t v, node_t u, weight_t w) {
  * algorithm.
  */
 class Matching {
+    Graph &G;
+
 public:
     using node_list = std::vector<node_t>;
     using count_list = std::vector<count_t>;
@@ -94,12 +93,15 @@ public:
     atomic_count_list dB;
     set_list N, S;
 
-    Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method);
+    Matching(Graph &_G, count_t (*b)(count_t, node_t), count_t method);
     std::pair<node_t, weight_t> lastSuitor(node_t v);
     result_t result(); // TODO: result calculating
+    node_t hashNode(node_t v) { return G.M[v]; }
+    node_t dehashNode(node_t v) { return G.dehashNode(v); }
 };
 
-Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
+Matching::Matching(Graph &_G, count_t (*b)(count_t, node_t), count_t method)
+    : G(_G) {
     T.resize(G.size());
     S.resize(G.size());
     V.resize(G.size());
@@ -113,29 +115,14 @@ Matching::Matching(Graph &G, count_t (*b)(count_t, node_t), count_t method) {
             N.push_back(edge_set(tempA.begin(), tempA.end()));
         // else
             // N.push_back(edge_set(tempA.begin(), tempA.begin() + B.back()));
-        
-        if (false) {
-            std::cerr << "Eligible adorators for node " << i << std::endl;
-            for (std::pair<weight_t, node_t> p : N.back()) {
-                std::cerr << "  " << i << "-" << p.second << " : " << p.first << std::endl;
-            }
-        }
-
     }
 }
 
 result_t Matching::result() {
     result_t sum = 0;
 
-    if (debug) {
-        std::cerr << "Counting the sum..." << std::endl;
-    }
-
     for (edge_set set : S) {
         for (std::pair<weight_t, node_t> p : set) {
-            if (debug) {
-                std::cerr << "  adding to sum:\t" << p.first << "\tto " << p.second << std::endl;
-            }
             sum += p.first;
         }
     }
@@ -143,17 +130,11 @@ result_t Matching::result() {
 }
 
 std::pair<weight_t, node_t> Matching::lastSuitor(node_t v) {
-    if (S[v].size() < B[v]) { 
-        if (debug) {
-            std::cerr << "No least suitor for " << v << std::endl;
-        }
+    if (S[v].size() < B[v] || B[v] < 1) {
         return std::make_pair(0, -1); // TODO: node_t unsigned!
     }
-    if (debug) {
-        std::cerr << "There is a last suitor " << (*(--(S[v].end()))).second << " : " << (*(--(S[v].end()))).first << std::endl;
-    }
 
-    return std::make_pair((*(--(S[v].end()))).first, (*(--(S[v].end()))).second);
+    return std::make_pair((*(--(S[v].end()))).first, hashNode((*(--(S[v].end()))).second));
 }
 
 bool createGraphFromFile(std::string &file, Graph &G);
@@ -212,19 +193,11 @@ bool createGraphFromFile(std::string &file, Graph &G) {
         fs.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
 
-    if (debug) {
-        std::cerr << "Starting to read the graph..." << std::endl;
-    }
-
     node_t v, u;
     weight_t w;
     while (!fs.eof()) {
         fs >> v >> u >> w;
         if (fs.fail()) break; // TODO: turn off failbit ?
-
-        if (debug) {
-            std::cerr << "  read new edge:\t\t" << v << "-" << u << " : " << w << std::endl;
-        }
         G.addEdge(v, u, w);
     }
 
@@ -235,10 +208,10 @@ bool createGraphFromFile(std::string &file, Graph &G) {
 std::pair<weight_t, node_t> findEligiblePartner(node_t v, Matching &M) {
     auto it = M.N[v].begin(), itEnd = M.N[v].end();
 
-    while (it != itEnd && M.lastSuitor((*it).second).first >= (*it).first) ++it;
+    while (it != itEnd && M.lastSuitor(M.hashNode((*it).second)).first >= (*it).first) ++it;
 
     if (it == itEnd) return std::make_pair(0, -1);
-    return (*it);
+    return std::make_pair((*it).first, M.hashNode((*it).second));
 }
 
 bool isEligible(std::pair<weight_t, node_t> p, Matching &M) {
@@ -266,8 +239,8 @@ void parrallelExecutor(count_t start, count_t count,
             if (isEligible(p, M)) {
                 u = p.second;
 
-                M.S[u].insert(std::make_pair(p.first, v));
-                M.N[v].erase(p);
+                M.S[u].insert(std::make_pair(p.first, M.dehashNode(v)));
+                M.N[v].erase(std::make_pair(p.first, M.dehashNode(p.second)));
                 M.T[v]++;
                 
                 if (M.S[u].size() > M.B[u]) {
@@ -301,6 +274,8 @@ result_t parrallelBSuitor(Graph &G,
 
             threads.push_back(std::move(t));
         }
+
+        // TODO: Use main thread
 
         while (!threads.empty()) {
             threads.back().join();
