@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <queue>
 #include <set>
+#include <cmath>
 #include <numeric>
 #include <thread>
 #include <mutex>
@@ -189,7 +190,7 @@ int main(int argc, char** argv) {
     Graph G = Graph();
     if (!createGraphFromFile(inputFilename, G)) return 1;
 
-    for (count_t i = 0; i < bLimit; i++) {
+    for (count_t i = 0; i <= bLimit; i++) {
         std::cout << parrallelBSuitor(G, &bvalue, i, threadCount) << "\n";
     }
 
@@ -254,7 +255,9 @@ void parrallelExecutor(count_t start, count_t count,
         v = M.V[k];
 
         while (M.T[v] < M.B[v] && !M.N[v].empty()) {
+            mut.lock();
             p = findEligiblePartner(v, M);
+            mut.unlock();
 
             if (p.second == (node_t) -1) break;
 
@@ -288,13 +291,14 @@ result_t parrallelBSuitor(Graph &G,
     std::mutex mut;
 
     while (!M.V.empty()) {
-        count_t jump = M.V.size() / threadCount;
+        count_t jump = ceil((double)M.V.size() / threadCount);
         std::vector<std::thread> threads;
 
         for (count_t start = 0; start < M.V.size(); start += jump) {
             std::thread t([start, jump, &mut, &M]{
                 parrallelExecutor(start, jump, mut, M);
             });
+
             threads.push_back(std::move(t));
         }
 

@@ -9,5 +9,3 @@ mv ms386007.zip ../sols/
 cd ../verify
 python3 verify.py
 cd ..
-
-rm -rf tests-1
