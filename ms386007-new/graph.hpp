@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <cstring>
 #include <limits>
+#include <algorithm>
 
 /**
  * Represents an undirected multigraph without loops using adjacency lists.
@@ -43,10 +44,17 @@ public:
     bool buildFromFile(std::string filename, build_t b);
     adjacency_list& getAdjacencyList(TNode v) { return V[hash(v)]; }
     size_type size() { return nodeCount; }
-    list_iter sortAdjacencyList(TNode v,
-                                list_iter begin,
+    list_iter sortAdjacencyList(list_iter begin,
                                 list_iter end,
-                                unsigned int k) {} // TODO: Implement sorting
+                                unsigned int k) {
+        if (end - begin < k) return begin;
+
+        list_iter middle = begin + k;
+        std::partial_sort(begin, middle, end,
+                          std::greater<std::pair<TWeight, TNode>>());
+        
+        return middle;
+    }
 
 };
 
@@ -90,21 +98,21 @@ bool Graph<TNode, TWeight>::buildFromFile(std::string filename, build_t b) {
     case MAX:
         while (!fs.eof()) {
             fs >> v >> u >> w;
-            if (fs.fail()) break; // TODO: turn off failbit ?
+            if (fs.fail()) break;
             this->addEdge(v, u, w);
         }
         break;
     case SUM:
         while (!fs.eof()) {
             fs >> v >> u >> w;
-            if (fs.fail()) break; // TODO: turn off failbit ?
+            if (fs.fail()) break;
             this->addEdge(v, u, w);
         }
         break;
     default:
         while (!fs.eof()) {
             fs >> v >> u >> w;
-            if (fs.fail()) break; // TODO: turn off failbit ?
+            if (fs.fail()) break;
             this->addEdge(v, u, w);
         }
         break;

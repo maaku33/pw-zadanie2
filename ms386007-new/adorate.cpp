@@ -69,7 +69,7 @@ Wrapper::Wrapper(graph_t &_G) : G(_G) {
 
     for (count_t i = 0; i < G.size(); i++) {
         graph_t::adjacency_list &A = G.getAdjacencyList(dehash(i));
-        auto sortEnd = G.sortAdjacencyList(dehash(i), A.begin(), A.end(), 20); // TODO: Magic constant
+        auto sortEnd = G.sortAdjacencyList(A.begin(), A.end(), 20); // TODO: Magic constant
         N.push_back(Iter(A.begin(), sortEnd, A.end()));
     }
 }
@@ -97,7 +97,7 @@ edge_t Wrapper::bestCandidate(node_t v) {
         }
 
         if (it == sortEnd) {
-            // TODO: sort next part of adjacency list
+            sortEnd = G.sortAdjacencyList(sortEnd, N[hv].end, 20); // TODO: Magic constant
         } else break;
     }
 
@@ -202,7 +202,7 @@ int main(int argc, char** argv) {
     }
 
     graph_t G = graph_t();
-    if (!G.buildFromFile(inputFilename, graph_t::MAX)) return 1;
+    if (!G.buildFromFile(inputFilename, graph_t::MULTI)) return 1;
 
     parrallelBSuitor(G, threadCount, bLimit);
 
