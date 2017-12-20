@@ -15,8 +15,6 @@
 template <typename TNode = unsigned int, typename TWeight = unsigned long>
 class Graph {
 public:
-    enum build_t {MAX, SUM, MULTI};
-
     using adjacency_list = std::vector<std::pair<TWeight, TNode>>;
     using list_iter = typename adjacency_list::iterator;
     using node_list = std::vector<adjacency_list>;
@@ -41,7 +39,7 @@ private:
 public:
     Graph() : nodeCount(0) {}
 
-    bool buildFromFile(std::string filename, build_t b);
+    bool buildFromFile(std::string filename);
     adjacency_list& getAdjacencyList(TNode v) { return V[hash(v)]; }
     size_type size() { return nodeCount; }
     list_iter sortAdjacencyList(list_iter begin,
@@ -76,7 +74,7 @@ void Graph<TNode, TWeight>::addEdge(TNode v, TNode u, TWeight w) {
 }
 
 template <typename TNode, typename TWeight>
-bool Graph<TNode, TWeight>::buildFromFile(std::string filename, build_t b) {
+bool Graph<TNode, TWeight>::buildFromFile(std::string filename) {
     std::fstream fs;
     fs.open(filename, std::fstream::in);
 
@@ -93,29 +91,11 @@ bool Graph<TNode, TWeight>::buildFromFile(std::string filename, build_t b) {
 
     TNode v, u;
     TWeight w;
-    
-    switch (b) {
-    case MAX:
-        while (!fs.eof()) {
-            fs >> v >> u >> w;
-            if (fs.fail()) break;
-            this->addEdge(v, u, w);
-        }
-        break;
-    case SUM:
-        while (!fs.eof()) {
-            fs >> v >> u >> w;
-            if (fs.fail()) break;
-            this->addEdge(v, u, w);
-        }
-        break;
-    default:
-        while (!fs.eof()) {
-            fs >> v >> u >> w;
-            if (fs.fail()) break;
-            this->addEdge(v, u, w);
-        }
-        break;
+
+    while (!fs.eof()) {
+        fs >> v >> u >> w;
+        if (fs.fail()) break;
+        this->addEdge(v, u, w);
     }
 
     fs.close();

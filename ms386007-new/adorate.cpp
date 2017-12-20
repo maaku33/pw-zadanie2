@@ -202,7 +202,7 @@ int main(int argc, char** argv) {
     }
 
     graph_t G = graph_t();
-    if (!G.buildFromFile(inputFilename, graph_t::MULTI)) return 1;
+    if (!G.buildFromFile(inputFilename)) return 1;
 
     parrallelBSuitor(G, threadCount, bLimit);
 
