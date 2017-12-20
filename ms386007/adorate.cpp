@@ -94,7 +94,7 @@ public:
     set_list N, S;
 
     Matching(Graph &_G, count_t (*b)(count_t, node_t), count_t method);
-    std::pair<node_t, weight_t> lastSuitor(node_t v);
+    std::pair<weight_t, node_t> lastSuitor(node_t v);
     result_t result(); // TODO: result calculating
     node_t hashNode(node_t v) { return G.M[v]; }
     node_t dehashNode(node_t v) { return G.dehashNode(v); }
