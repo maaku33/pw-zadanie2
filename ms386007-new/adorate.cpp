@@ -30,6 +30,7 @@ class Wrapper {
     using edge_comp = std::greater<edge_t>;
 
     graph_t &G;
+    std::mutex *M;
 
     node_t hash(node_t v) { return G.hash(v); }
     node_t dehash(node_t v) { return G.dehash(v); }
@@ -58,8 +59,12 @@ public:
     edge_t lastSuitor(node_t v);
     edge_t bestCandidate(node_t v);
     bool isSuitable(edge_t e);
+    void lock(node_t v);
+    void unlock(node_t v);
     result_t result();
     void reset();
+
+    ~Wrapper() { delete [] M; }
 };
 
 Wrapper::Wrapper(graph_t &_G) : G(_G) {
@@ -72,6 +77,8 @@ Wrapper::Wrapper(graph_t &_G) : G(_G) {
         auto sortEnd = G.sortAdjacencyList(A.begin(), A.end(), 20); // TODO: Magic constant
         N.push_back(Iter(A.begin(), sortEnd, A.end()));
     }
+
+    M = new std::mutex[G.size()];
 }
 
 void Wrapper::generateB(count_t (*b)(count_t, node_t), count_t method) {
@@ -109,6 +116,14 @@ bool Wrapper::isSuitable(edge_t e) {
     return lastSuitor(e.second).first < e.first;
 }
 
+void Wrapper::lock(node_t v) {
+    M[hash(v)].lock();
+}
+
+void Wrapper::unlock(node_t v) {
+    M[hash(v)].unlock();
+}
+
 result_t Wrapper::result() {
     result_t sum = 0;
 
@@ -134,7 +149,7 @@ void Wrapper::reset() {
     }
 }
 
-void parrallelExecutor(count_t start, count_t jump, Wrapper &W, std::mutex *M) {
+void parrallelExecutor(count_t start, count_t jump, Wrapper &W) {
     node_t v, u, y;
     edge_t e;
 
@@ -147,8 +162,6 @@ void parrallelExecutor(count_t start, count_t jump, Wrapper &W, std::mutex *M) {
 
 void parrallelBSuitor(graph_t &G, count_t threadCount, count_t bLimit) {
     Wrapper W = Wrapper(G);
-    std::mutex *Mutex = nullptr;
-    Mutex = new std::mutex[G.size()];
 
     for (count_t i = 0; i <= bLimit; i++) {
         W.generateB(bvalue, i);
@@ -158,13 +171,13 @@ void parrallelBSuitor(graph_t &G, count_t threadCount, count_t bLimit) {
             std::vector<std::thread> threads;
 
             for (count_t start = jump; start < W.V.size(); start += jump) {
-                std::thread t([start, jump, &W, Mutex]{
-                    parrallelExecutor(start, jump, W, Mutex);
+                std::thread t([start, jump, &W]{
+                    parrallelExecutor(start, jump, W);
                 });
                 threads.push_back(std::move(t));
             }
 
-            parrallelExecutor(0, jump, W, Mutex);
+            parrallelExecutor(0, jump, W);
 
             while (!threads.empty()) {
                 threads.back().join();
@@ -175,10 +188,9 @@ void parrallelBSuitor(graph_t &G, count_t threadCount, count_t bLimit) {
             W.Vdef.clear();
         }
         
+        std::cout << W.result() << std::endl;
         W.reset();
     }
-
-    delete [] Mutex;
 }
 
 int main(int argc, char** argv) {
