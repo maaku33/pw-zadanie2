@@ -255,6 +255,7 @@ int main(int argc, char** argv) {
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsedSeconds = end - start;
     std::cerr << "time: " << elapsedSeconds.count() << "s" << std::endl;
+    // TODO: remove time counting
 
     return 0;
 }
