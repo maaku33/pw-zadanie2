@@ -31,9 +31,7 @@ class Wrapper {
 
     graph_t &G;
     std::mutex *M;
-
-    node_t hash(node_t v) { return G.hash(v); }
-    node_t dehash(node_t v) { return G.dehash(v); }
+    std::mutex VdefM;
 
 public:
     struct Iter {
@@ -49,16 +47,19 @@ public:
     using iter_list = std::vector<Iter>;
 
     node_list V, Vdef;
-    count_list B;
+    count_list B, T;
     set_list S;
     iter_list N;
 
     Wrapper(graph_t &_G);
 
+    node_t hash(node_t v) { return G.hash(v); }
+    node_t dehash(node_t v) { return G.dehash(v); }
     void generateB(count_t (*b)(count_t, node_t), count_t method);
     edge_t lastSuitor(node_t v);
-    edge_t bestCandidate(node_t v);
+    edge_t bestCandidate(node_t hv);
     bool isSuitable(edge_t e);
+    void addSuitor(node_t v, edge_t e);
     void lock(node_t v);
     void unlock(node_t v);
     result_t result();
@@ -68,6 +69,7 @@ public:
 };
 
 Wrapper::Wrapper(graph_t &_G) : G(_G) {
+    T.resize(G.size());
     S.resize(G.size());
     V.resize(G.size());
     std::iota(V.begin(), V.end(), 0);
@@ -94,12 +96,13 @@ edge_t Wrapper::lastSuitor(node_t v) {
     return *(--S[hv].end());
 }
 
-edge_t Wrapper::bestCandidate(node_t v) {
-    node_t hv = hash(v);
+edge_t Wrapper::bestCandidate(node_t hv) {
     auto &it = N[hv].last, &sortEnd = N[hv].sortEnd;
+    edge_t lastE;
 
     while (it != N[hv].end) {
-        while (it != sortEnd && lastSuitor((*it).second).first >= (*it).first) {
+        while (it != sortEnd &&
+               !(lastSuitor((*it).second) < std::make_pair((*it).first, dehash(hv)))) {
             ++it;
         }
 
@@ -116,19 +119,46 @@ bool Wrapper::isSuitable(edge_t e) {
     return lastSuitor(e.second).first < e.first;
 }
 
-void Wrapper::lock(node_t v) {
-    M[hash(v)].lock();
+void Wrapper::addSuitor(node_t v, edge_t e) {
+    node_t hv = hash(v);
+
+    if (debug) {
+        std::cerr << "Added suitor " << e.second << " : " << e.first << " of node " << v << std::endl;
+    }
+
+    S[hv].insert(e);
+    if (S[hv].size() > B[hv]) {
+        auto it = --S[hv].end();
+
+        VdefM.lock();
+        Vdef.push_back(hash((*it).second));
+        T[hash((*it).second)]--;
+        VdefM.unlock();
+        
+        if (debug) {
+            std::cerr << "Removed edge " << (*it).second << " : " << (*it).first << " from suitors of " << v << std::endl; 
+        }
+
+        S[hv].erase(it);
+    }
 }
 
-void Wrapper::unlock(node_t v) {
-    M[hash(v)].unlock();
-}
+void Wrapper::lock(node_t v) { M[hash(v)].lock(); }
+void Wrapper::unlock(node_t v) { M[hash(v)].unlock(); }
 
 result_t Wrapper::result() {
     result_t sum = 0;
 
+    if (debug) {
+        std::cerr << "Calculating result..." << std::endl;
+    }
+
     for (edge_set E : S) {
         for (edge_t e : E) {
+            if (debug) {
+                std::cerr << "Taking edge to " << e.second << " : " << e.first << std::endl;
+            }
+
             sum += e.first;
         }
     }
@@ -138,6 +168,7 @@ result_t Wrapper::result() {
 
 void Wrapper::reset() {
     B.clear();
+    std::fill(T.begin(), T.end(), 0);
     S.clear();
     S.resize(G.size());
     V.resize(G.size());
@@ -150,21 +181,42 @@ void Wrapper::reset() {
 }
 
 void parrallelExecutor(count_t start, count_t jump, Wrapper &W) {
-    node_t v, u, y;
+    node_t v;
     edge_t e;
 
     for (count_t k = start; k < start + jump && k < W.V.size(); k++) {
         v = W.V[k];
 
-        // TODO: Implement the algorithm
+        while (W.N[v].last != W.N[v].end && W.T[v] < W.B[v]) {
+            e = W.bestCandidate(v);
+
+            if (e.second != (node_t) -1) {
+                W.N[v].last++;
+
+                W.lock(e.second);
+
+                if (W.isSuitable(e)) {
+                    W.T[v]++;
+                    W.addSuitor(e.second, std::make_pair(e.first, W.dehash(v)));
+                }
+
+                W.unlock(e.second);
+            } else {
+                break;
+            }
+        }
     }
 }
 
 void parrallelBSuitor(graph_t &G, count_t threadCount, count_t bLimit) {
-    Wrapper W = Wrapper(G);
+    Wrapper W(G);
 
     for (count_t i = 0; i <= bLimit; i++) {
         W.generateB(bvalue, i);
+
+        if (debug) {
+            std::cerr << "At blimit = " << i << "\n";
+        }
 
         while (!W.V.empty()) {
             count_t jump = ceil((double)W.V.size() / threadCount);
@@ -177,6 +229,10 @@ void parrallelBSuitor(graph_t &G, count_t threadCount, count_t bLimit) {
                 threads.push_back(std::move(t));
             }
 
+            if (debug) {
+                std::cerr << "Finished creating (" << threads.size() << ") threads.\n";
+            }
+
             parrallelExecutor(0, jump, W);
 
             while (!threads.empty()) {
@@ -186,6 +242,14 @@ void parrallelBSuitor(graph_t &G, count_t threadCount, count_t bLimit) {
 
             W.V = W.Vdef;
             W.Vdef.clear();
+
+            if (debug) {
+                std::cerr << "V has size: " << W.V.size() << "\n";
+                for (node_t node : W.V) {
+                    std::cerr << node << " ";
+                }
+                std::cerr << std::endl;
+            }
         }
         
         std::cout << W.result() << std::endl;

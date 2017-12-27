@@ -6,6 +6,8 @@
 #include <vector>
 #include <unordered_map>
 #include <cstring>
+#include <cmath>
+#include <iterator>
 #include <limits>
 #include <algorithm>
 
@@ -45,9 +47,8 @@ public:
     list_iter sortAdjacencyList(list_iter begin,
                                 list_iter end,
                                 unsigned int k) {
-        if (end - begin < k) return begin;
-
-        list_iter middle = begin + k;
+        list_iter middle = 
+            begin + std::min(k, (unsigned int) std::distance(begin, end));
         std::partial_sort(begin, middle, end,
                           std::greater<std::pair<TWeight, TNode>>());
         
