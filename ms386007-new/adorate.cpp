@@ -102,8 +102,8 @@ edge_t Wrapper::bestCandidate(node_t hv) {
     edge_t lastE;
 
     while (it != N[hv].end) {
-        while (it != sortEnd &&
-               !(lastSuitor((*it).second) < std::make_pair((*it).first, dehash(hv)))) {
+        while (it != sortEnd && !(lastSuitor((*it).second) <
+                                  std::make_pair((*it).first, dehash(hv)))) {
             ++it;
         }
 
