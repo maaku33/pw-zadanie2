@@ -51,3 +51,5 @@
 *.log
 *results-run1.csv
 tests*/*
+
+b*
