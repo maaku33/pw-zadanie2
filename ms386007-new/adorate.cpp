@@ -5,6 +5,7 @@
 #include <set>
 #include <cmath>
 #include <numeric>
+#include <algorithm>
 #include <thread>
 #include <mutex>
 #include <chrono>
@@ -32,7 +33,7 @@ class Wrapper {
 
     graph_t &G;
     std::mutex *M;
-    std::mutex chageM;
+    std::mutex changeM;
 
 public:
     struct Iter {
@@ -43,12 +44,14 @@ public:
 
     using node_list = std::vector<node_t>;
     using count_list = std::vector<count_t>;
+    using count_set = std::set<count_t>;
     using edge_set = std::set<edge_t, edge_comp>;
     using set_list = std::vector<edge_set>;
     using iter_list = std::vector<Iter>;
 
-    node_list V, Vdef;
-    count_list B, T;
+    node_list V;
+    count_set Vdef;
+    count_list B, T, dT;
     set_list S;
     iter_list N;
 
@@ -71,6 +74,7 @@ public:
 
 Wrapper::Wrapper(graph_t &_G) : G(_G) {
     T.resize(G.size());
+    dT.resize(G.size());
     S.resize(G.size());
     V.resize(G.size());
     std::iota(V.begin(), V.end(), 0);
@@ -127,10 +131,10 @@ void Wrapper::addSuitor(node_t v, edge_t e) {
     if (S[hv].size() > B[hv]) {
         auto it = --S[hv].end();
 
-        chageM.lock();
-        Vdef.push_back(hash((*it).second));
-        T[hash((*it).second)]--;
-        chageM.unlock();
+        changeM.lock();
+        Vdef.insert(hash((*it).second));
+        dT[hash((*it).second)]--;
+        changeM.unlock();
 
         S[hv].erase(it);
     }
@@ -172,7 +176,7 @@ void parrallelExecutor(count_t start, count_t jump, Wrapper &W) {
     for (count_t k = start; k < start + jump && k < W.V.size(); k++) {
         v = W.V[k];
 
-        while (W.N[v].last != W.N[v].end && W.T[v] < W.B[v]) {
+        while (W.N[v].last != W.N[v].end && W.T[v] < W.B[v]) {            
             e = W.bestCandidate(v);
 
             if (e.second != (node_t) -1) {
@@ -216,8 +220,13 @@ void parrallelBSuitor(graph_t &G, count_t threadCount, count_t bLimit) {
                 threads.pop_back();
             }
 
-            W.V = W.Vdef;
+            W.V.clear();
+            std::copy(W.Vdef.begin(), W.Vdef.end(), std::back_inserter(W.V));
             W.Vdef.clear();
+
+            std::transform(W.dT.begin(), W.dT.end(), W.T.begin(), W.T.begin(),
+                           std::plus<count_t>());
+            std::fill(W.dT.begin(), W.dT.end(), 0);
         }
         
         std::cout << W.result() << std::endl;
