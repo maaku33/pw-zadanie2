@@ -52,4 +52,7 @@
 *results-run1.csv
 tests*/*
 
-b*
+bs
+rf
+
+data/kron*
