@@ -34,6 +34,7 @@
         "cstddef": "cpp",
         "cwctype": "cpp",
         "codecvt": "cpp",
-        "condition_variable": "cpp"
+        "condition_variable": "cpp",
+        "*.ipp": "cpp"
     }
 }

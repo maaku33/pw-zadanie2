@@ -82,8 +82,7 @@ Wrapper::Wrapper(graph_t &_G) : G(_G) {
 
     for (count_t i = 0; i < G.size(); i++) {
         graph_t::adjacency_list &A = G.getAdjacencyList(dehash(i));
-        auto sortEnd = G.sortAdjacencyList(A.begin(), A.end(), 20); // TODO: Magic constant
-        N.push_back(Iter(A.begin(), sortEnd, A.end()));
+        N.push_back(Iter(A.begin(), A.begin(), A.end()));
     }
 
     M = new std::mutex[G.size()];
@@ -113,7 +112,7 @@ edge_t Wrapper::bestCandidate(node_t hv) {
         }
 
         if (it == sortEnd) {
-            sortEnd = G.sortAdjacencyList(sortEnd, N[hv].end, 20); // TODO: Magic constant
+            sortEnd = G.sortAdjacencyList(sortEnd, N[hv].end, 9 * B[hv]); // TODO: Magic constant
         } else break;
     }
 
