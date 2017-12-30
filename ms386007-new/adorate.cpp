@@ -112,7 +112,7 @@ edge_t Wrapper::bestCandidate(node_t hv) {
         }
 
         if (it == sortEnd) {
-            sortEnd = G.sortAdjacencyList(sortEnd, N[hv].end, 9 * B[hv]); // TODO: Magic constant
+            sortEnd = G.sortAdjacencyList(sortEnd, N[hv].end, 9 * B[hv]);
         } else break;
     }
 
