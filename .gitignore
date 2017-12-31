@@ -36,7 +36,6 @@
 */build/*
 
 # Latex build files
-*.pdf
 *.synctex*
 *.log
 *.fls
