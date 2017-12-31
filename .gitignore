@@ -28,7 +28,6 @@
 
 # Executables
 *.exe
-*.out
 *.app
 
 # Builds
@@ -51,6 +50,7 @@
 *.log
 *results-run1.csv
 tests*/*
+times/*
 
 bs
 rf
