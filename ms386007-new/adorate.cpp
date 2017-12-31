@@ -8,8 +8,6 @@
 #include <algorithm>
 #include <thread>
 #include <mutex>
-#include <chrono>
-#include <iomanip>
 
 #ifdef DEBUG
     const bool debug = true;
@@ -33,7 +31,7 @@ class Wrapper {
     using edge_comp = std::greater<edge_t>;
 
     graph_t &G;
-    std::mutex *M;
+    std::mutex *M, *M2;
     std::mutex changeM;
 
 public:
@@ -70,7 +68,7 @@ public:
     result_t result();
     void reset();
 
-    ~Wrapper() { delete [] M; }
+    ~Wrapper() { delete [] M; delete [] M2; }
 };
 
 Wrapper::Wrapper(graph_t &_G) : G(_G) {
@@ -86,6 +84,7 @@ Wrapper::Wrapper(graph_t &_G) : G(_G) {
     }
 
     M = new std::mutex[G.size()];
+    M2 = new std::mutex[G.size()];
 }
 
 void Wrapper::generateB(count_t (*b)(count_t, node_t), count_t method) {
@@ -97,6 +96,9 @@ void Wrapper::generateB(count_t (*b)(count_t, node_t), count_t method) {
 
 edge_t Wrapper::lastSuitor(node_t v) {
     node_t hv = hash(v);
+    
+    std::unique_lock<std::mutex> lc(M2[hv]);
+
     if (B[hv] == 0 || S[hv].size() < B[hv]) return std::make_pair(0, -1);
     return *(--S[hv].end());
 }
@@ -126,6 +128,8 @@ bool Wrapper::isSuitable(node_t hv, edge_t e) {
 
 void Wrapper::addSuitor(node_t v, edge_t e) {
     node_t hv = hash(v);
+
+    std::unique_lock<std::mutex> lc(M2[hv]);
 
     S[hv].insert(e);
     if (S[hv].size() > B[hv]) {
@@ -257,15 +261,7 @@ int main(int argc, char** argv) {
     graph_t G = graph_t();
     if (!G.buildFromFile(inputFilename)) return 1;
 
-    auto start = std::chrono::system_clock::now();
-
     parrallelBSuitor(G, threadCount, bLimit);
-
-    auto end = std::chrono::system_clock::now();
-    std::chrono::duration<double> elapsedSeconds = end - start;
-    std::cerr << std::fixed << std::setprecision(3) 
-              << elapsedSeconds.count() << std::endl;
-    // TODO: remove time counting
 
     return 0;
 }

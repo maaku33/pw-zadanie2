@@ -23,16 +23,27 @@
 \begin{document}
 \maketitle
 
-\begin{abstract}
-Przedstawiamy zastosowaną wersję implementacji algorytmu \textit{b-SUITOR}
-oraz otrzymane przyspieszenia wersji współbieżnej dla różnej liczby wątków.
-\end{abstract}
-
 \section{Algorytm}\label{algorytm}
-We worked hard, and achieved very little.
+Zastosowano wersję algorytmu z \textit{opóźnionym przetwarzaniem} i \textit{częściowym sortowaniem}
+list sąsiedztwa.
 
-\section{wyniki}\label{wyniki}
-In this section we describe the results.
+\section{Wyniki}\label{wyniki}
+W poniższej tabeli zamieszczone są średnie przyspieszenia algorytmu dla kolejnych liczb wątków.
+\\
+\begin{center}
+\begin{tabular}{ | l | r | }
+        \hline
+        $p_1$ & 1 \\
+        $p_2$ & 1.24 \\
+        $p_3$ & 1.37 \\
+        $p_4$ & 1.54 \\
+        $p_5$ & 1.59 \\
+        $p_6$ & 1.64 \\
+        $p_7$ & 1.72 \\
+        $p_8$ & 1.74 \\
+        \hline
+\end{tabular}
+\end{center}
 
 \bibliographystyle{abbrv}
 \bibliography{main}
