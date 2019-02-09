@@ -1,5 +1,5 @@
-# B-skojarzenia
-Współbieżna implementacja aproksymacyjnego algorytmu b-skojarzeń w języku C++.
+# B-Suitor
+Concurrent implementation of a half-approximation algorithm for computing a b-matching.
 
-## Algorytm
-Implementowana wersja algorytmu opisana została w [tej publikacji](https://www.cs.purdue.edu/homes/apothen/Papers/bMatching-SISC-2016.pdf).
+## Algorithm
+This implementation is based on the algorithm described in [this paper](https://www.cs.purdue.edu/homes/apothen/Papers/bMatching-SISC-2016.pdf).
